@@ -83,12 +83,12 @@ class _AssistantScreenState extends State<AssistantScreen> with SingleTickerProv
 
       _pulseController.repeat(reverse: true);
 
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(
-      //     content: Text(_isHolding ? '🎤 Hold to record...' : '🎤 Recording... Tap again to stop'),
-      //     duration: const Duration(seconds: 2),
-      //   ),
-      // );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_isHolding ? '🎤 Hold to record...' : '🎤 Recording... Tap again to stop'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
     } else {
       setState(() {
         _isHolding = false;
@@ -119,15 +119,15 @@ class _AssistantScreenState extends State<AssistantScreen> with SingleTickerProv
         _recordingDuration = duration;
       });
 
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   SnackBar(
-      //     content: Text('🎤 Recording saved (${_formatDuration(duration)})'),
-      //     action: SnackBarAction(
-      //       label: 'Send',
-      //       onPressed: _sendVoiceMessage,
-      //     ),
-      //   ),
-      // );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('🎤 Recording saved (${_formatDuration(duration)})'),
+          action: SnackBarAction(
+            label: 'Send',
+            onPressed: _sendVoiceMessage,
+          ),
+        ),
+      );
     }
   }
 
