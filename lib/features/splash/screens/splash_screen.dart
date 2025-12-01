@@ -150,41 +150,41 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             ),
 
             // Get Started Button (bottom)
-            Positioned(
-              bottom: 50,
-              left: 0,
-              right: 0,
-              child: FadeTransition(
-                opacity: _fadeAnimation,
-                child: Center(
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.pushReplacementNamed(context, '/main');
-                    },
-                    child: Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.95),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 30,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.arrow_forward,
-                        color: AppTheme.primaryPurple,
-                        size: 28,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            // Positioned(
+            //   bottom: 50,
+            //   left: 0,
+            //   right: 0,
+            //   child: FadeTransition(
+            //     opacity: _fadeAnimation,
+            //     child: Center(
+            //       child: GestureDetector(
+            //         onTap: () {
+            //           Navigator.pushReplacementNamed(context, '/main');
+            //         },
+            //         child: Container(
+            //           width: 60,
+            //           height: 60,
+            //           decoration: BoxDecoration(
+            //             color: Colors.white.withOpacity(0.95),
+            //             shape: BoxShape.circle,
+            //             boxShadow: [
+            //               BoxShadow(
+            //                 color: Colors.black.withOpacity(0.2),
+            //                 blurRadius: 30,
+            //                 offset: const Offset(0, 10),
+            //               ),
+            //             ],
+            //           ),
+            //           child: const Icon(
+            //             Icons.arrow_forward,
+            //             color: AppTheme.primaryPurple,
+            //             size: 28,
+            //           ),
+            //         ),
+            //       ),
+            //     ),
+            //   ),
+            // ),
           ],
         ),
       ),

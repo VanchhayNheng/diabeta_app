@@ -172,6 +172,8 @@ class ChatMessage {
   final DateTime timestamp;
   final String? imageUrl;
   final List<String>? imageUrls;
+  final String? audioPath;
+  final Duration? audioDuration;
 
   ChatMessage({
     required this.id,
@@ -180,6 +182,8 @@ class ChatMessage {
     required this.timestamp,
     this.imageUrl,
     this.imageUrls,
+    this.audioPath,
+    this.audioDuration,
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {

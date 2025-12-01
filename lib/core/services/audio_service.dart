@@ -99,7 +99,7 @@ class AudioService {
   Future<String> audioToBase64(String path) async {
     try {
       final bytes = await File(path).readAsBytes();
-      return 'data:audio/aac;base64,${base64Encode(bytes)}';
+      return 'service:audio/aac;base64,${base64Encode(bytes)}';
     } catch (e) {
       print('Error converting audio to base64: $e');
       throw Exception('Failed to convert audio');

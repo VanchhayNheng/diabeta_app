@@ -3,9 +3,70 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/glass_widgets.dart';
 import '../../../shared/widgets/profile_avatar.dart';
+import '../../settings/service/user_data_service.dart';
 
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+class HomeScreen extends StatefulWidget {
+  final VoidCallback? onNavigateToAssistant;
+  final VoidCallback? onNavigateToMedications;
+
+  final VoidCallback? onNavigateToMealLog;
+
+  final VoidCallback? onNavigateToExercise;
+
+  const HomeScreen({super.key, this.onNavigateToAssistant, this.onNavigateToMedications, this.onNavigateToMealLog, this.onNavigateToExercise});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  final _userDataService = UserDataService();
+  String _userName = 'Nick';
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _loadUserName();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Reload when app comes to foreground or when screen becomes visible
+    if (state == AppLifecycleState.resumed) {
+      _loadUserName();
+    }
+  }
+
+  /// Load user name from local storage
+  Future<void> _loadUserName() async {
+    if (!mounted) return;
+
+    setState(() => _isLoading = true);
+
+    final profileInfo = await _userDataService.getProfileBasicInfo();
+
+    if (!mounted) return;
+
+    setState(() {
+      // Extract first name only for the greeting
+      final fullName = profileInfo['name'] ?? 'Nick Wilde';
+      _userName = fullName.split(' ').first;
+      _isLoading = false;
+    });
+  }
+
+  /// Public method to refresh the screen from outside
+  void refresh() {
+    _loadUserName();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,8 +84,13 @@ class HomeScreen extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Hello, Nick 👋',
+                    _isLoading
+                        ? Text(
+                      'Hello 👋',
+                      style: Theme.of(context).textTheme.displaySmall,
+                    )
+                        : Text(
+                      'Hello, $_userName 👋',
                       style: Theme.of(context).textTheme.displaySmall,
                     ),
                     const ProfileAvatar(
@@ -65,7 +131,7 @@ class HomeScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 16),
                       ElevatedButton(
-                        onPressed: () {},
+                        onPressed: widget.onNavigateToAssistant ?? () {},
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white.withOpacity(0.95),
                           foregroundColor: AppTheme.primaryPurple,
@@ -150,19 +216,19 @@ class HomeScreen extends StatelessWidget {
                             icon: '💊',
                             title: 'Medications',
                             badge: '2 pending',
-                            onTap: () {},
+                            onTap: widget.onNavigateToMedications ?? () {},
                           ),
                           const SizedBox(width: 10),
                           QuickActionCard(
                             icon: '🥗',
                             title: 'Meal Log',
-                            onTap: () {},
+                            onTap: widget.onNavigateToMealLog ?? () {},
                           ),
                           const SizedBox(width: 10),
                           QuickActionCard(
                             icon: '🏃',
                             title: 'Exercise',
-                            onTap: () {},
+                            onTap: widget.onNavigateToExercise ?? () {},
                           ),
                           const SizedBox(width: 20),
                         ],
@@ -172,60 +238,6 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
             ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 20)),
-
-            // Essentials Grid
-            // SliverToBoxAdapter(
-            //   child: Padding(
-            //     padding: const EdgeInsets.symmetric(horizontal: 20),
-            //     child: Column(
-            //       crossAxisAlignment: CrossAxisAlignment.start,
-            //       children: [
-            //         Text(
-            //           'Essentials',
-            //           style: Theme.of(context).textTheme.headlineMedium,
-            //         ),
-            //         const SizedBox(height: 16),
-            //         GridView.count(
-            //           crossAxisCount: 2,
-            //           shrinkWrap: true,
-            //           physics: const NeverScrollableScrollPhysics(),
-            //           mainAxisSpacing: 15,
-            //           crossAxisSpacing: 15,
-            //           childAspectRatio: 1.0,
-            //           children: [
-            //             FeatureCard(
-            //               icon: '🔬',
-            //               title: 'Regular Tests',
-            //               subtitle: 'HbA1c, Lipids',
-            //               onTap: () {},
-            //             ),
-            //             FeatureCard(
-            //               icon: '💊',
-            //               title: 'Medications',
-            //               subtitle: 'Daily Tracker',
-            //               onTap: () {},
-            //             ),
-            //             FeatureCard(
-            //               icon: '🏃',
-            //               title: 'Exercise',
-            //               subtitle: 'Stay Active',
-            //               onTap: () {},
-            //             ),
-            //             FeatureCard(
-            //               icon: '🥗',
-            //               title: 'Nutrition',
-            //               subtitle: 'Healthy Diet',
-            //               onTap: () {},
-            //             ),
-            //           ],
-            //         ),
-            //       ],
-            //     ),
-            //   ),
-            // ),
-
             const SliverToBoxAdapter(child: SizedBox(height: 20)),
           ],
         ),

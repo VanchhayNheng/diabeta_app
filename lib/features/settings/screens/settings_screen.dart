@@ -1,11 +1,61 @@
+import 'package:diabeta_app/features/settings/screens/exercise_log_screeen.dart';
+import 'package:diabeta_app/features/settings/screens/meal_log_screen.dart';
 import 'package:flutter/material.dart';
-
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/glass_widgets.dart';
 import '../../../shared/widgets/profile_avatar.dart';
 
-class SettingsScreen extends StatelessWidget {
+// Import all the new screens
+import '../service/user_data_service.dart';
+import 'user_information_screen.dart';
+import 'medication_screen.dart';
+import 'health_information_screen.dart';
+import 'report_issue_screen.dart';
+import 'about_us_screen.dart';
+
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  final _userDataService = UserDataService();
+  String _userName = 'Nick Wilde';
+  String _userEmail = 'nick.w@email.com';
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileInfo();
+  }
+
+  /// Load user profile information from local storage
+  Future<void> _loadProfileInfo() async {
+    setState(() => _isLoading = true);
+
+    final profileInfo = await _userDataService.getProfileBasicInfo();
+
+    setState(() {
+      _userName = profileInfo['name'] ?? 'Nick Wilde';
+      _userEmail = profileInfo['email'] ?? 'nick.w@email.com';
+      _isLoading = false;
+    });
+  }
+
+  /// Navigate to user information screen and refresh on return
+  Future<void> _navigateToUserInfo() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const UserInformationScreen(),
+      ),
+    );
+    // Refresh profile info when returning from the screen
+    _loadProfileInfo();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,12 +83,18 @@ class SettingsScreen extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: GlassCard(
                   padding: const EdgeInsets.all(24),
-                  child: Row(
+                  child: _isLoading
+                      ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                      : Row(
                     children: [
-                      // Use the new ProfileAvatar widget
                       const ProfileAvatar(
                         size: 80,
-                        editable: true, // Allow editing
+                        editable: true,
                       ),
                       const SizedBox(width: 16),
                       Expanded(
@@ -46,12 +102,12 @@ class SettingsScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Nick Wilde',
+                              _userName,
                               style: Theme.of(context).textTheme.titleLarge,
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'nick.w@email.com',
+                              _userEmail,
                               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                 color: AppTheme.textSecondary,
                               ),
@@ -80,8 +136,63 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
 
-            const SliverToBoxAdapter(child: SizedBox(height: 20)),
 
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: GlassCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'My Log',
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                      const SizedBox(height: 16),
+                      _SettingItem(
+                        icon: '💊',
+                        title: 'Your Medication',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const MedicationScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      _SettingItem(
+                        icon: '🥗',
+                        title: 'Meal Log',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const MealLogScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      _SettingItem(
+                        icon: '🏃',
+                        title: 'Exercise',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ExerciseLogScreen(),
+                            ),
+                          );
+                        },
+                        showDivider: false,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
             // Account Settings
             SliverToBoxAdapter(
               child: Padding(
@@ -98,32 +209,43 @@ class SettingsScreen extends StatelessWidget {
                       _SettingItem(
                         icon: '👤',
                         title: 'Your Information',
-                        onTap: () {},
-                      ),
-                      _SettingItem(
-                        icon: '💊',
-                        title: 'Your Medication',
-                        onTap: () {},
+                        onTap: _navigateToUserInfo,
                       ),
                       _SettingItem(
                         icon: '📋',
                         title: 'Health Information',
-                        onTap: () {},
-                      ),
-                      _SettingItem(
-                        icon: '✏️',
-                        title: 'Edit Profile',
-                        onTap: () {},
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const HealthInformationScreen(),
+                            ),
+                          );
+                        },
                       ),
                       _SettingItem(
                         icon: '⚠️',
                         title: 'Report an Issue',
-                        onTap: () {},
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ReportIssueScreen(),
+                            ),
+                          );
+                        },
                       ),
                       _SettingItem(
                         icon: 'ℹ️',
                         title: 'About Us',
-                        onTap: () {},
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const AboutUsScreen(),
+                            ),
+                          );
+                        },
                         showDivider: false,
                       ),
                     ],
@@ -131,85 +253,6 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
             ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 20)),
-
-            // Notifications
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: GlassCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Notifications',
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 16),
-                      _ToggleItem(
-                        title: 'Glucose Testing',
-                        subtitle: 'Daily reminders to check levels',
-                        value: true,
-                        onChanged: (value) {},
-                      ),
-                      _ToggleItem(
-                        title: 'Medication Alerts',
-                        subtitle: 'Never miss your medications',
-                        value: true,
-                        onChanged: (value) {},
-                      ),
-                      _ToggleItem(
-                        title: 'AI Insights',
-                        subtitle: 'Personalized health tips',
-                        value: true,
-                        onChanged: (value) {},
-                        showDivider: false,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 20)),
-
-            // Sign Out Button
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    borderRadius: AppTheme.radiusMedium,
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        _showSignOutDialog(context);
-                      },
-                      borderRadius: AppTheme.radiusMedium,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        decoration: BoxDecoration(
-                          color: AppTheme.errorRed.withOpacity(0.1),
-                          borderRadius: AppTheme.radiusMedium,
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          'Sign Out',
-                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                color: AppTheme.errorRed,
-                              ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
             const SliverToBoxAdapter(child: SizedBox(height: 100)),
           ],
         ),
@@ -221,6 +264,7 @@ class SettingsScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Sign Out'),
         content: const Text('Are you sure you want to sign out?'),
         actions: [
@@ -232,6 +276,12 @@ class SettingsScreen extends StatelessWidget {
             onPressed: () {
               Navigator.pop(context);
               // Sign out logic
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('👋 Signed out successfully'),
+                  backgroundColor: AppTheme.successGreen,
+                ),
+              );
             },
             child: Text(
               'Sign Out',

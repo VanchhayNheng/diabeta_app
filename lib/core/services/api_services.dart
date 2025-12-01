@@ -54,7 +54,7 @@ class ApiClient {
   Dio get dio => _dio;
 }
 
-/// Example: Authentication Service
+/// Example: Authentication service
 class AuthService {
   final ApiClient _apiClient = ApiClient();
   
@@ -69,7 +69,7 @@ class AuthService {
       );
       
       // TODO: Store auth token
-      // await _storeToken(response.data['token']);
+      // await _storeToken(response.service['token']);
       
       return response.data;
     } on DioException catch (e) {
@@ -112,7 +112,7 @@ class AuthService {
   }
 }
 
-/// Example: Glucose Service
+/// Example: Glucose service
 class GlucoseService {
   final ApiClient _apiClient = ApiClient();
 
@@ -185,7 +185,7 @@ class GlucoseService {
   }
 }
 
-/// AI Assistant Service - Updated for your API
+/// AI Assistant service - Updated for your API
 class AIService {
   final ApiClient _apiClient = ApiClient();
 
@@ -212,7 +212,7 @@ class AIService {
       return response.data;
     } on DioException catch (e) {
       print('API Error: ${e.response?.statusCode}');
-      print('Error data: ${e.response?.data}');
+      print('Error service: ${e.response?.data}');
       print('Request URL: ${e.requestOptions.uri}');
       throw _handleError(e);
     }
@@ -224,7 +224,7 @@ class AIService {
     return response['message'] ?? '';
   }
 
-  /// Get structured meal data from response
+  /// Get structured meal service from response
   Map<String, dynamic>? getMealData(Map<String, dynamic> response) {
     return response['structured']?['meal'];
   }
@@ -235,7 +235,7 @@ class AIService {
   }
 }
 
-/// Example: Medication Service
+/// Example: Medication service
 class MedicationService {
   final ApiClient _apiClient = ApiClient();
   

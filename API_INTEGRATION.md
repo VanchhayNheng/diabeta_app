@@ -66,7 +66,7 @@ AI assistant features:
 
 Before (mock data):
 ```dart
-// HomeScreen currently shows static data
+// HomeScreen currently shows static service
 Text('145') // Static glucose value
 ```
 
@@ -99,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() => _isLoading = false);
       // Show error message
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading data: $e')),
+        SnackBar(content: Text('Error loading service: $e')),
       );
     }
   }
@@ -224,7 +224,7 @@ void main() {
 class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    // Load data when screen first opens
+    // Load service when screen first opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<GlucoseProvider>().loadReadings();
     });
@@ -242,7 +242,7 @@ class HomeScreen extends StatelessWidget {
         }
 
         return Container(
-          // ... UI with real data
+          // ... UI with real service
           Text(glucoseProvider.latestReading?.value.toString() ?? '--'),
           Text('Average: ${glucoseProvider.averageGlucose.toStringAsFixed(1)}'),
         );
