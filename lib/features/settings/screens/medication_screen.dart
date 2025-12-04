@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../../core/services/api_services.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/glass_widgets.dart';
-import '../service/medication_data_service.dart';
+import '../service/user_data_service.dart';
 
 class MedicationScreen extends StatefulWidget {
   const MedicationScreen({super.key});
@@ -11,9 +12,11 @@ class MedicationScreen extends StatefulWidget {
 }
 
 class _MedicationScreenState extends State<MedicationScreen> {
-  final _medicationService = MedicationDataService();
+  final _medicationService = MedicationService();
+  final _userDataService = UserDataService();
   List<Map<String, dynamic>> _medications = [];
   bool _isLoading = true;
+  String? _userId;
 
   @override
   void initState() {
@@ -21,89 +24,94 @@ class _MedicationScreenState extends State<MedicationScreen> {
     _loadMedications();
   }
 
-  /// Load medications from local storage
   Future<void> _loadMedications() async {
     setState(() => _isLoading = true);
 
-    final medications = await _medicationService.loadMedications();
-
-    setState(() {
-      _medications = medications;
-      _isLoading = false;
-    });
-  }
-
-  /// Save medications to local storage
-  Future<void> _saveMedications() async {
-    final success = await _medicationService.saveMedications(_medications);
-
-    if (!success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('⚠️ Failed to save medications'),
-          backgroundColor: AppTheme.errorRed,
-        ),
+    try {
+      _userId = await _userDataService.getUserId();
+      final medications = await _medicationService.getMedications(
+        userId: _userId!,
+        activeOnly: true,
       );
+
+      setState(() {
+        _medications = medications;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading medications: $e')),
+        );
+      }
     }
   }
 
   void _addMedication() async {
-    await Navigator.push(
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddMedicationScreen(userId: _userId!),
+      ),
+    );
+
+    if (result == true) {
+      _loadMedications();
+    }
+  }
+
+  void _editMedication(Map<String, dynamic> medication) async {
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => AddMedicationScreen(
-          onSave: (medication) {
-            setState(() {
-              _medications.add(medication);
-            });
-            _saveMedications();
-          },
+          userId: _userId!,
+          medication: medication,
         ),
       ),
     );
+
+    if (result == true) {
+      _loadMedications();
+    }
   }
 
-  void _editMedication(int index) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AddMedicationScreen(
-          medication: _medications[index],
-          onSave: (medication) {
-            setState(() {
-              _medications[index] = medication;
-            });
-            _saveMedications();
-          },
-        ),
-      ),
-    );
-  }
-
-  void _deleteMedication(int index) {
+  void _deleteMedication(Map<String, dynamic> medication) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Medication'),
-        content: Text('Are you sure you want to delete ${_medications[index]['name']}?'),
+        content: Text('Are you sure you want to delete ${medication['medication_name']}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              setState(() {
-                _medications.removeAt(index);
-              });
-              _saveMedications();
+            onPressed: () async {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Medication deleted'),
-                  backgroundColor: AppTheme.errorRed,
-                ),
-              );
+              try {
+                await _medicationService.deleteMedication(
+                  medication['id'],
+                  _userId!,
+                );
+                _loadMedications();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Medication deleted'),
+                      backgroundColor: AppTheme.successGreen,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                }
+              }
             },
             child: const Text('Delete', style: TextStyle(color: AppTheme.errorRed)),
           ),
@@ -122,7 +130,6 @@ class _MedicationScreenState extends State<MedicationScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // Header
               Padding(
                 padding: const EdgeInsets.all(20),
                 child: Row(
@@ -150,30 +157,19 @@ class _MedicationScreenState extends State<MedicationScreen> {
                   ],
                 ),
               ),
-
-              // Content
               Expanded(
                 child: _isLoading
-                    ? Center(
-                  child: CircularProgressIndicator(
-                    color: AppTheme.primaryPurple,
-                  ),
-                )
+                    ? Center(child: CircularProgressIndicator())
                     : _medications.isEmpty
                     ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        '💊',
-                        style: TextStyle(fontSize: 64),
-                      ),
+                      Text('💊', style: TextStyle(fontSize: 64)),
                       const SizedBox(height: 16),
                       Text(
                         'No medications added yet',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: AppTheme.textSecondary,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 8),
                       TextButton.icon(
@@ -214,53 +210,50 @@ class _MedicationScreenState extends State<MedicationScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        med['name'],
+                                        med['medication_name'],
                                         style: Theme.of(context)
                                             .textTheme
                                             .titleMedium
-                                            ?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                                            ?.copyWith(fontWeight: FontWeight.bold),
                                       ),
                                       Text(
                                         '${med['dosage']} • ${med['frequency']}',
                                         style: Theme.of(context)
                                             .textTheme
                                             .bodySmall
-                                            ?.copyWith(
-                                          color: AppTheme.textSecondary,
-                                        ),
+                                            ?.copyWith(color: AppTheme.textSecondary),
                                       ),
                                     ],
                                   ),
                                 ),
-                                PopupMenuButton(
-                                  itemBuilder: (context) => [
-                                    PopupMenuItem(
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.edit, size: 18),
-                                          SizedBox(width: 8),
-                                          Text('Edit'),
-                                        ],
-                                      ),
-                                      onTap: () => _editMedication(index),
-                                    ),
-                                    PopupMenuItem(
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.delete,
-                                              size: 18, color: AppTheme.errorRed),
-                                          SizedBox(width: 8),
-                                          Text('Delete',
-                                              style: TextStyle(
-                                                  color: AppTheme.errorRed)),
-                                        ],
-                                      ),
-                                      onTap: () => _deleteMedication(index),
-                                    ),
-                                  ],
+                                IconButton(
+                                  icon: Icon(Icons.delete, color: AppTheme.errorRed),
+                                  onPressed: () => _deleteMedication(med),
                                 ),
+                                // PopupMenuButton(
+                                //   itemBuilder: (context) => [
+                                //     PopupMenuItem(
+                                //       child: Row(
+                                //         children: [
+                                //           Icon(Icons.edit, size: 18),
+                                //           SizedBox(width: 8),
+                                //           Text('Edit'),
+                                //         ],
+                                //       ),
+                                //       onTap: () => _editMedication(med),
+                                //     ),
+                                //     PopupMenuItem(
+                                //       child: Row(
+                                //         children: [
+                                //           Icon(Icons.delete, size: 18, color: AppTheme.errorRed),
+                                //           SizedBox(width: 8),
+                                //           Text('Delete', style: TextStyle(color: AppTheme.errorRed)),
+                                //         ],
+                                //       ),
+                                //       onTap: () => _deleteMedication(med),
+                                //     ),
+                                //   ],
+                                // ),
                               ],
                             ),
                             const SizedBox(height: 12),
@@ -268,15 +261,17 @@ class _MedicationScreenState extends State<MedicationScreen> {
                             const SizedBox(height: 12),
                             _InfoRow(
                               icon: Icons.access_time,
-                              label: 'Schedule',
-                              value: (med['time'] as List).join(', '),
+                              label: 'Time',
+                              value: med['time_of_day'] ?? "",
                             ),
-                            const SizedBox(height: 8),
-                            _InfoRow(
-                              icon: Icons.info_outline,
-                              label: 'Instructions',
-                              value: med['instructions'],
-                            ),
+                            if (med['notes']?.isNotEmpty ?? false) ...[
+                              const SizedBox(height: 8),
+                              _InfoRow(
+                                icon: Icons.info_outline,
+                                label: 'Notes',
+                                value: med['notes'],
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -327,13 +322,13 @@ class _InfoRow extends StatelessWidget {
 }
 
 class AddMedicationScreen extends StatefulWidget {
+  final String userId;
   final Map<String, dynamic>? medication;
-  final Function(Map<String, dynamic>) onSave;
 
   const AddMedicationScreen({
     super.key,
+    required this.userId,
     this.medication,
-    required this.onSave,
   });
 
   @override
@@ -342,22 +337,24 @@ class AddMedicationScreen extends StatefulWidget {
 
 class _AddMedicationScreenState extends State<AddMedicationScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _medicationService = MedicationService();
+
   late TextEditingController _nameController;
   late TextEditingController _dosageController;
-  late TextEditingController _instructionsController;
+  late TextEditingController _notesController;
   String _frequency = 'Once daily';
-  List<String> _times = ['08:00 AM'];
+  String _timeOfDay = 'Morning';
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.medication?['name'] ?? '');
+    _nameController = TextEditingController(text: widget.medication?['medication_name'] ?? '');
     _dosageController = TextEditingController(text: widget.medication?['dosage'] ?? '');
-    _instructionsController =
-        TextEditingController(text: widget.medication?['instructions'] ?? '');
+    _notesController = TextEditingController(text: widget.medication?['notes'] ?? '');
     if (widget.medication != null) {
       _frequency = widget.medication!['frequency'];
-      _times = List<String>.from(widget.medication!['time']);
+      _timeOfDay =  "";
     }
   }
 
@@ -365,27 +362,43 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   void dispose() {
     _nameController.dispose();
     _dosageController.dispose();
-    _instructionsController.dispose();
+    _notesController.dispose();
     super.dispose();
   }
 
-  void _saveMedication() {
+  Future<void> _saveMedication() async {
     if (_formKey.currentState!.validate()) {
-      widget.onSave({
-        'name': _nameController.text,
-        'dosage': _dosageController.text,
-        'frequency': _frequency,
-        'time': _times,
-        'instructions': _instructionsController.text,
-        'active': true,
-      });
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Medication saved successfully!'),
-          backgroundColor: AppTheme.successGreen,
-        ),
-      );
+      setState(() => _isSaving = true);
+
+      try {
+        await _medicationService.saveMedication(
+          medicationName: _nameController.text,
+          dosage: _dosageController.text,
+          frequency: _frequency,
+          timeOfDay: _timeOfDay,
+          notes: _notesController.text,
+          userId: 'alice_session',//widget.userId,
+          id: widget.medication?['id'],
+          isActive: true,
+        );
+
+        if (mounted) {
+          Navigator.pop(context, true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Medication saved successfully!'),
+              backgroundColor: AppTheme.successGreen,
+            ),
+          );
+        }
+      } catch (e) {
+        setState(() => _isSaving = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e')),
+          );
+        }
+      }
     }
   }
 
@@ -393,13 +406,10 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: AppTheme.backgroundGradient,
-        ),
+        decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
         child: SafeArea(
           child: Column(
             children: [
-              // Header
               Padding(
                 padding: const EdgeInsets.all(20),
                 child: Row(
@@ -418,15 +428,12 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                   ],
                 ),
               ),
-
-              // Content
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Form(
                     key: _formKey,
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         GlassCard(
                           child: Column(
@@ -459,29 +466,28 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                                   labelText: 'Frequency',
                                   prefixIcon: Icon(Icons.repeat),
                                 ),
-                                items: [
-                                  'Once daily',
-                                  'Twice daily',
-                                  'Three times daily',
-                                  'Four times daily',
-                                  'As needed'
-                                ].map((freq) {
-                                  return DropdownMenuItem(
-                                    value: freq,
-                                    child: Text(freq),
-                                  );
-                                }).toList(),
-                                onChanged: (value) {
-                                  setState(() {
-                                    _frequency = value!;
-                                  });
-                                },
+                                items: ['Once daily', 'Twice daily', 'Three times daily', 'As needed']
+                                    .map((freq) => DropdownMenuItem(value: freq, child: Text(freq)))
+                                    .toList(),
+                                onChanged: (value) => setState(() => _frequency = value!),
+                              ),
+                              const SizedBox(height: 16),
+                              DropdownButtonFormField<String>(
+                                value: _timeOfDay,
+                                decoration: InputDecoration(
+                                  labelText: 'Time of Day',
+                                  prefixIcon: Icon(Icons.access_time),
+                                ),
+                                items: ['Morning', 'Afternoon', 'Evening', 'Night']
+                                    .map((time) => DropdownMenuItem(value: time, child: Text(time)))
+                                    .toList(),
+                                onChanged: (value) => setState(() => _timeOfDay = value!),
                               ),
                               const SizedBox(height: 16),
                               TextFormField(
-                                controller: _instructionsController,
+                                controller: _notesController,
                                 decoration: InputDecoration(
-                                  labelText: 'Instructions',
+                                  labelText: 'Notes (optional)',
                                   hintText: 'e.g., Take with food',
                                   prefixIcon: Icon(Icons.notes),
                                 ),
@@ -492,23 +498,17 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                         ),
                         const SizedBox(height: 24),
                         ElevatedButton(
-                          onPressed: _saveMedication,
+                          onPressed: _isSaving ? null : _saveMedication,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.primaryPurple,
                             minimumSize: const Size(double.infinity, 56),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           ),
-                          child: Text(
-                              widget.medication == null
-                                  ? 'Add Medication'
-                                  : 'Save Changes',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              )
+                          child: _isSaving
+                              ? CircularProgressIndicator(color: Colors.white)
+                              : Text(
+                            widget.medication == null ? 'Add Medication' : 'Save Changes',
+                            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                         ),
                       ],

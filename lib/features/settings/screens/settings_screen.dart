@@ -1,14 +1,14 @@
-import 'package:diabeta_app/features/settings/screens/exercise_log_screeen.dart';
-import 'package:diabeta_app/features/settings/screens/meal_log_screen.dart';
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/glass_widgets.dart';
 import '../../../shared/widgets/profile_avatar.dart';
 
-// Import all the new screens
+// Import all the screens
 import '../service/user_data_service.dart';
 import 'user_information_screen.dart';
 import 'medication_screen.dart';
+import 'meal_log_screen.dart';
+import 'exercise_log_screeen.dart';
 import 'health_information_screen.dart';
 import 'report_issue_screen.dart';
 import 'about_us_screen.dart';
@@ -20,7 +20,7 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObserver {
   final _userDataService = UserDataService();
   String _userName = 'Nick Wilde';
   String _userEmail = 'nick.w@email.com';
@@ -29,31 +29,71 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadProfileInfo();
   }
 
-  /// Load user profile information from local storage
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Reload profile info when app resumes
+    if (state == AppLifecycleState.resumed) {
+      _loadProfileInfo();
+    }
+  }
+
+  /// Load user profile information from API
   Future<void> _loadProfileInfo() async {
+    if (!mounted) return;
+
     setState(() => _isLoading = true);
 
-    final profileInfo = await _userDataService.getProfileBasicInfo();
+    try {
+      final profileInfo = await _userDataService.getProfileBasicInfo();
 
-    setState(() {
-      _userName = profileInfo['name'] ?? 'Nick Wilde';
-      _userEmail = profileInfo['email'] ?? 'nick.w@email.com';
-      _isLoading = false;
-    });
+      if (!mounted) return;
+
+      setState(() {
+        _userName = profileInfo['name'] ?? 'Nick Wilde';
+        _userEmail = profileInfo['email'] ?? 'nick.w@email.com';
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading profile info: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        _userName = 'Nick Wilde'; // Fallback
+        _userEmail = 'nick.w@email.com'; // Fallback
+        _isLoading = false;
+      });
+    }
   }
 
   /// Navigate to user information screen and refresh on return
   Future<void> _navigateToUserInfo() async {
-    await Navigator.push(
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const UserInformationScreen(),
       ),
     );
+
     // Refresh profile info when returning from the screen
+    // Also check if result indicates data was updated
+    if (result == true || mounted) {
+      _loadProfileInfo();
+    }
+  }
+
+  /// Public method to refresh profile from outside
+  void refresh() {
     _loadProfileInfo();
   }
 
@@ -136,8 +176,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
 
-
             const SliverToBoxAdapter(child: SizedBox(height: 20)),
+
+            // My Log Section
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -192,7 +233,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
+
             const SliverToBoxAdapter(child: SizedBox(height: 20)),
+
             // Account Settings
             SliverToBoxAdapter(
               child: Padding(
@@ -259,39 +302,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-
-  void _showSignOutDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Sign Out'),
-        content: const Text('Are you sure you want to sign out?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Sign out logic
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('👋 Signed out successfully'),
-                  backgroundColor: AppTheme.successGreen,
-                ),
-              );
-            },
-            child: Text(
-              'Sign Out',
-              style: TextStyle(color: AppTheme.errorRed),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _SettingItem extends StatelessWidget {
@@ -338,64 +348,6 @@ class _SettingItem extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        ),
-        if (showDivider) const SizedBox(height: 12),
-      ],
-    );
-  }
-}
-
-class _ToggleItem extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-  final bool showDivider;
-
-  const _ToggleItem({
-    Key? key,
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    required this.onChanged,
-    this.showDivider = true,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppTheme.primaryPurple.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.labelMedium,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-              Switch(
-                value: value,
-                onChanged: onChanged,
-                activeColor: AppTheme.successGreen,
-              ),
-            ],
           ),
         ),
         if (showDivider) const SizedBox(height: 12),

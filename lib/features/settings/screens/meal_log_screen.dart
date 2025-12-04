@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../../core/services/api_services.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/glass_widgets.dart';
-import '../service/meal_log_service.dart';
+import '../../settings/service/user_data_service.dart';
 
 class MealLogScreen extends StatefulWidget {
   const MealLogScreen({super.key});
@@ -12,8 +13,10 @@ class MealLogScreen extends StatefulWidget {
 
 class _MealLogScreenState extends State<MealLogScreen> {
   final _mealLogService = MealLogService();
+  final _userDataService = UserDataService();
   List<Map<String, dynamic>> _mealLogs = [];
   bool _isLoading = true;
+  String? _userId;
 
   @override
   void initState() {
@@ -23,52 +26,39 @@ class _MealLogScreenState extends State<MealLogScreen> {
 
   Future<void> _loadMealLogs() async {
     setState(() => _isLoading = true);
-    final logs = await _mealLogService.loadMealLogs();
-    setState(() {
-      _mealLogs = logs;
-      _isLoading = false;
-    });
-  }
 
-  Future<void> _saveMealLogs() async {
-    await _mealLogService.saveMealLogs(_mealLogs);
+    try {
+      _userId = await _userDataService.getUserId();
+      final logs = await _mealLogService.getMeals(userId: _userId!);
+
+      setState(() {
+        _mealLogs = logs;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading meals: $e')),
+        );
+      }
+    }
   }
 
   void _addMeal() async {
-    await Navigator.push(
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => AddMealScreen(
-          onSave: (meal) {
-            setState(() {
-              meal['id'] = DateTime.now().millisecondsSinceEpoch.toString();
-              _mealLogs.insert(0, meal);
-            });
-            _saveMealLogs();
-          },
-        ),
+        builder: (context) => AddMealScreen(userId: _userId!),
       ),
     );
+
+    if (result == true) {
+      _loadMealLogs();
+    }
   }
 
-  void _editMeal(int index) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AddMealScreen(
-          meal: _mealLogs[index],
-          onSave: (meal) {
-            setState(() {
-              _mealLogs[index] = meal;
-            });
-            _saveMealLogs();
-          },
-        ),
-      ),
-    );
-  }
-
-  void _deleteMeal(int index) {
+  void _deleteMeal(Map<String, dynamic> meal) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -80,12 +70,18 @@ class _MealLogScreenState extends State<MealLogScreen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              setState(() {
-                _mealLogs.removeAt(index);
-              });
-              _saveMealLogs();
+            onPressed: () async {
               Navigator.pop(context);
+              try {
+                await _mealLogService.deleteMeal(meal['id'], _userId!);
+                _loadMealLogs();
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                }
+              }
             },
             child: const Text('Delete', style: TextStyle(color: AppTheme.errorRed)),
           ),
@@ -94,13 +90,20 @@ class _MealLogScreenState extends State<MealLogScreen> {
     );
   }
 
+  String _getMealIcon(String? mealTime) {
+    if (mealTime == null) return '🥗';
+    final hour = DateTime.parse(mealTime).hour;
+    if (hour < 11) return '🍳';
+    if (hour < 15) return '🥗';
+    if (hour < 19) return '🍽️';
+    return '🌙';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: AppTheme.backgroundGradient,
-        ),
+        decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
         child: SafeArea(
           child: Column(
             children: [
@@ -113,20 +116,12 @@ class _MealLogScreenState extends State<MealLogScreen> {
                       onPressed: () => Navigator.pop(context),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      'Meal Log',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    Text('Meal Log', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
                     const Spacer(),
                     IconButton(
                       icon: const Icon(Icons.add),
                       onPressed: _addMeal,
-                      style: IconButton.styleFrom(
-                        backgroundColor: AppTheme.primaryPurple,
-                        foregroundColor: Colors.white,
-                      ),
+                      style: IconButton.styleFrom(backgroundColor: AppTheme.primaryPurple, foregroundColor: Colors.white),
                     ),
                   ],
                 ),
@@ -141,16 +136,9 @@ class _MealLogScreenState extends State<MealLogScreen> {
                     children: [
                       Text('🥗', style: TextStyle(fontSize: 64)),
                       const SizedBox(height: 16),
-                      Text(
-                        'No meals logged yet',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
+                      Text('No meals logged yet', style: Theme.of(context).textTheme.titleMedium),
                       const SizedBox(height: 8),
-                      TextButton.icon(
-                        onPressed: _addMeal,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add Meal'),
-                      ),
+                      TextButton.icon(onPressed: _addMeal, icon: const Icon(Icons.add), label: const Text('Add Meal')),
                     ],
                   ),
                 )
@@ -170,93 +158,38 @@ class _MealLogScreenState extends State<MealLogScreen> {
                                 Container(
                                   width: 48,
                                   height: 48,
-                                  decoration: BoxDecoration(
-                                    gradient: AppTheme.primaryGradient,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      _getMealIcon(meal['mealType']),
-                                      style: TextStyle(fontSize: 24),
-                                    ),
-                                  ),
+                                  decoration: BoxDecoration(gradient: AppTheme.primaryGradient, borderRadius: BorderRadius.circular(12)),
+                                  child: Center(child: Text(_getMealIcon(meal['meal_time']), style: TextStyle(fontSize: 24))),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
+                                      Text(meal['meal_name'], style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                                       Text(
-                                        meal['mealType'],
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleMedium
-                                            ?.copyWith(fontWeight: FontWeight.bold),
-                                      ),
-                                      Text(
-                                        meal['time'],
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(color: AppTheme.textSecondary),
+                                        DateTime.parse(meal['meal_time']).toString().substring(0, 16),
+                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
                                       ),
                                     ],
                                   ),
                                 ),
-                                PopupMenuButton(
-                                  itemBuilder: (context) => [
-                                    PopupMenuItem(
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.edit, size: 18),
-                                          SizedBox(width: 8),
-                                          Text('Edit'),
-                                        ],
-                                      ),
-                                      onTap: () => _editMeal(index),
-                                    ),
-                                    PopupMenuItem(
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.delete, size: 18, color: AppTheme.errorRed),
-                                          SizedBox(width: 8),
-                                          Text('Delete', style: TextStyle(color: AppTheme.errorRed)),
-                                        ],
-                                      ),
-                                      onTap: () => _deleteMeal(index),
-                                    ),
-                                  ],
-                                ),
+                                IconButton(icon: Icon(Icons.delete, color: AppTheme.errorRed), onPressed: () => _deleteMeal(meal)),
                               ],
                             ),
                             const SizedBox(height: 12),
-                            Text(
-                              meal['foodItems'],
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
                               children: [
-                                _NutritionBadge(
-                                  icon: Icons.grain,
-                                  label: '${meal['carbs']}g carbs',
-                                ),
-                                const SizedBox(width: 8),
-                                _NutritionBadge(
-                                  icon: Icons.local_fire_department,
-                                  label: '${meal['calories']} cal',
-                                ),
+                                _NutritionBadge(icon: Icons.grain, label: '${meal['carbs']}g carbs'),
+                                _NutritionBadge(icon: Icons.fitness_center, label: '${meal['protein']}g protein'),
+                                _NutritionBadge(icon: Icons.local_fire_department, label: '${meal['calories']} cal'),
                               ],
                             ),
                             if (meal['notes']?.isNotEmpty ?? false) ...[
                               const SizedBox(height: 8),
-                              Text(
-                                'Note: ${meal['notes']}',
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  fontStyle: FontStyle.italic,
-                                  color: AppTheme.textSecondary,
-                                ),
-                              ),
+                              Text('Note: ${meal['notes']}', style: Theme.of(context).textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic)),
                             ],
                           ],
                         ),
@@ -271,46 +204,24 @@ class _MealLogScreenState extends State<MealLogScreen> {
       ),
     );
   }
-
-  String _getMealIcon(String mealType) {
-    switch (mealType) {
-      case 'Breakfast':
-        return '🍳';
-      case 'Lunch':
-        return '🥗';
-      case 'Dinner':
-        return '🍽️';
-      case 'Snack':
-        return '🍎';
-      default:
-        return '🥗';
-    }
-  }
 }
 
 class _NutritionBadge extends StatelessWidget {
   final IconData icon;
   final String label;
-
   const _NutritionBadge({required this.icon, required this.label});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppTheme.primaryPurple.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-      ),
+      decoration: BoxDecoration(color: AppTheme.primaryPurple.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 14, color: AppTheme.primaryPurple),
           const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(fontSize: 12, color: AppTheme.primaryPurple),
-          ),
+          Text(label, style: TextStyle(fontSize: 12, color: AppTheme.primaryPurple)),
         ],
       ),
     );
@@ -318,10 +229,8 @@ class _NutritionBadge extends StatelessWidget {
 }
 
 class AddMealScreen extends StatefulWidget {
-  final Map<String, dynamic>? meal;
-  final Function(Map<String, dynamic>) onSave;
-
-  const AddMealScreen({super.key, this.meal, required this.onSave});
+  final String userId;
+  const AddMealScreen({super.key, required this.userId});
 
   @override
   State<AddMealScreen> createState() => _AddMealScreenState();
@@ -329,69 +238,76 @@ class AddMealScreen extends StatefulWidget {
 
 class _AddMealScreenState extends State<AddMealScreen> {
   final _formKey = GlobalKey<FormState>();
-  late TextEditingController _foodItemsController;
+  final _mealLogService = MealLogService();
+  late TextEditingController _nameController;
   late TextEditingController _carbsController;
+  late TextEditingController _proteinController;
+  late TextEditingController _fatController;
   late TextEditingController _caloriesController;
   late TextEditingController _notesController;
-  String _mealType = 'Breakfast';
-  TimeOfDay _selectedTime = TimeOfDay.now();
+  DateTime _selectedTime = DateTime.now();
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _foodItemsController = TextEditingController(text: widget.meal?['foodItems'] ?? '');
-    _carbsController = TextEditingController(text: widget.meal?['carbs'] ?? '');
-    _caloriesController = TextEditingController(text: widget.meal?['calories'] ?? '');
-    _notesController = TextEditingController(text: widget.meal?['notes'] ?? '');
-    if (widget.meal != null) {
-      _mealType = widget.meal!['mealType'];
-      final timeParts = widget.meal!['time'].split(':');
-      _selectedTime = TimeOfDay(
-        hour: int.parse(timeParts[0]),
-        minute: int.parse(timeParts[1].split(' ')[0]),
-      );
-    }
+    _nameController = TextEditingController();
+    _carbsController = TextEditingController();
+    _proteinController = TextEditingController();
+    _fatController = TextEditingController();
+    _caloriesController = TextEditingController();
+    _notesController = TextEditingController();
   }
 
   @override
   void dispose() {
-    _foodItemsController.dispose();
+    _nameController.dispose();
     _carbsController.dispose();
+    _proteinController.dispose();
+    _fatController.dispose();
     _caloriesController.dispose();
     _notesController.dispose();
     super.dispose();
   }
 
-  Future<void> _selectTime() async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: _selectedTime,
-    );
-    if (picked != null) {
-      setState(() => _selectedTime = picked);
+  Future<void> _selectDateTime() async {
+    final date = await showDatePicker(context: context, initialDate: _selectedTime, firstDate: DateTime(2020), lastDate: DateTime.now());
+    if (date != null) {
+      final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(_selectedTime));
+      if (time != null) {
+        setState(() => _selectedTime = DateTime(date.year, date.month, date.day, time.hour, time.minute));
+      }
     }
   }
 
-  void _saveMeal() {
+  Future<void> _saveMeal() async {
     if (_formKey.currentState!.validate()) {
-      final meal = {
-        'id': widget.meal?['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
-        'mealType': _mealType,
-        'foodItems': _foodItemsController.text,
-        'carbs': _carbsController.text,
-        'calories': _caloriesController.text,
-        'time': _selectedTime.format(context),
-        'date': DateTime.now().toIso8601String(),
-        'notes': _notesController.text,
-      };
-      widget.onSave(meal);
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Meal logged successfully!'),
-          backgroundColor: AppTheme.successGreen,
-        ),
-      );
+      setState(() => _isSaving = true);
+
+      try {
+        await _mealLogService.saveMeal(
+          mealName: _nameController.text,
+          mealTime: _selectedTime,
+          carbs: int.parse(_carbsController.text),
+          protein: int.tryParse(_proteinController.text),
+          fat: int.tryParse(_fatController.text),
+          calories: int.parse(_caloriesController.text),
+          notes: _notesController.text,
+          userId: widget.userId,
+        );
+
+        if (mounted) {
+          Navigator.pop(context, true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('✅ Meal logged successfully!'), backgroundColor: AppTheme.successGreen),
+          );
+        }
+      } catch (e) {
+        setState(() => _isSaving = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        }
+      }
     }
   }
 
@@ -407,17 +323,9 @@ class _AddMealScreenState extends State<AddMealScreen> {
                 padding: const EdgeInsets.all(20),
                 child: Row(
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
-                    ),
+                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
                     const SizedBox(width: 8),
-                    Text(
-                      widget.meal == null ? 'Add Meal' : 'Edit Meal',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    Text('Add Meal', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -431,27 +339,18 @@ class _AddMealScreenState extends State<AddMealScreen> {
                         GlassCard(
                           child: Column(
                             children: [
-                              DropdownButtonFormField<String>(
-                                value: _mealType,
-                                decoration: InputDecoration(
-                                  labelText: 'Meal Type',
-                                  prefixIcon: Icon(Icons.restaurant),
-                                ),
-                                items: ['Breakfast', 'Lunch', 'Dinner', 'Snack']
-                                    .map((type) => DropdownMenuItem(value: type, child: Text(type)))
-                                    .toList(),
-                                onChanged: (value) => setState(() => _mealType = value!),
+                              TextFormField(
+                                controller: _nameController,
+                                decoration: InputDecoration(labelText: 'Meal Name', hintText: 'e.g., Grilled chicken salad', prefixIcon: Icon(Icons.fastfood)),
+                                validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
                               ),
                               const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _foodItemsController,
-                                decoration: InputDecoration(
-                                  labelText: 'Food Items',
-                                  hintText: 'e.g., Grilled chicken, rice, vegetables',
-                                  prefixIcon: Icon(Icons.fastfood),
+                              InkWell(
+                                onTap: _selectDateTime,
+                                child: InputDecorator(
+                                  decoration: InputDecoration(labelText: 'Date & Time', prefixIcon: Icon(Icons.access_time)),
+                                  child: Text(_selectedTime.toString().substring(0, 16)),
                                 ),
-                                maxLines: 2,
-                                validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
                               ),
                               const SizedBox(height: 16),
                               Row(
@@ -459,10 +358,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
                                   Expanded(
                                     child: TextFormField(
                                       controller: _carbsController,
-                                      decoration: InputDecoration(
-                                        labelText: 'Carbs (g)',
-                                        prefixIcon: Icon(Icons.grain),
-                                      ),
+                                      decoration: InputDecoration(labelText: 'Carbs (g)', prefixIcon: Icon(Icons.grain)),
                                       keyboardType: TextInputType.number,
                                       validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
                                     ),
@@ -470,11 +366,28 @@ class _AddMealScreenState extends State<AddMealScreen> {
                                   const SizedBox(width: 16),
                                   Expanded(
                                     child: TextFormField(
+                                      controller: _proteinController,
+                                      decoration: InputDecoration(labelText: 'Protein (g)', prefixIcon: Icon(Icons.fitness_center)),
+                                      keyboardType: TextInputType.number,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _fatController,
+                                      decoration: InputDecoration(labelText: 'Fat (g)', prefixIcon: Icon(Icons.water_drop)),
+                                      keyboardType: TextInputType.number,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: TextFormField(
                                       controller: _caloriesController,
-                                      decoration: InputDecoration(
-                                        labelText: 'Calories',
-                                        prefixIcon: Icon(Icons.local_fire_department),
-                                      ),
+                                      decoration: InputDecoration(labelText: 'Calories', prefixIcon: Icon(Icons.local_fire_department)),
                                       keyboardType: TextInputType.number,
                                       validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
                                     ),
@@ -482,24 +395,9 @@ class _AddMealScreenState extends State<AddMealScreen> {
                                 ],
                               ),
                               const SizedBox(height: 16),
-                              InkWell(
-                                onTap: _selectTime,
-                                child: InputDecorator(
-                                  decoration: InputDecoration(
-                                    labelText: 'Time',
-                                    prefixIcon: Icon(Icons.access_time),
-                                  ),
-                                  child: Text(_selectedTime.format(context)),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
                               TextFormField(
                                 controller: _notesController,
-                                decoration: InputDecoration(
-                                  labelText: 'Notes (optional)',
-                                  hintText: 'How did you feel?',
-                                  prefixIcon: Icon(Icons.notes),
-                                ),
+                                decoration: InputDecoration(labelText: 'Notes (optional)', hintText: 'How did you feel?', prefixIcon: Icon(Icons.notes)),
                                 maxLines: 2,
                               ),
                             ],
@@ -507,16 +405,15 @@ class _AddMealScreenState extends State<AddMealScreen> {
                         ),
                         const SizedBox(height: 24),
                         ElevatedButton(
-                          onPressed: _saveMeal,
+                          onPressed: _isSaving ? null : _saveMeal,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.primaryPurple,
                             minimumSize: const Size(double.infinity, 56),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           ),
-                          child: Text(
-                            widget.meal == null ? 'Add Meal' : 'Save Changes',
-                            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                          ),
+                          child: _isSaving
+                              ? CircularProgressIndicator(color: Colors.white)
+                              : Text('Add Meal', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                         ),
                       ],
                     ),

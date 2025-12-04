@@ -17,7 +17,6 @@ class _UserInformationScreenState extends State<UserInformationScreen> {
   bool _isEditing = false;
   bool _isLoading = true;
 
-  // User service stored in memory
   Map<String, String> _userData = {};
   late Map<String, TextEditingController> _controllers;
 
@@ -27,7 +26,7 @@ class _UserInformationScreenState extends State<UserInformationScreen> {
     _loadUserData();
   }
 
-  /// Load user service from local storage when screen initializes
+  /// Load user data from API
   Future<void> _loadUserData() async {
     setState(() => _isLoading = true);
 
@@ -45,15 +44,16 @@ class _UserInformationScreenState extends State<UserInformationScreen> {
           'address': TextEditingController(text: _userData['address']),
           'emergencyContact': TextEditingController(text: _userData['emergencyContact']),
           'emergencyPhone': TextEditingController(text: _userData['emergencyPhone']),
+          'a1c': TextEditingController(text: _userData['a1c']),
+          'weight': TextEditingController(text: _userData['weight']),
         };
         _isLoading = false;
       });
     } catch (e) {
-      // Show error message if loading fails
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('⚠️ Error loading service: $e'),
+            content: Text('⚠️ Error loading data: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -68,15 +68,15 @@ class _UserInformationScreenState extends State<UserInformationScreen> {
     super.dispose();
   }
 
-  /// Save changes to local storage
+  /// Save changes to API
   Future<void> _saveChanges() async {
     if (_formKey.currentState!.validate()) {
-      // Update in-memory service
+      // Update in-memory data
       _controllers.forEach((key, controller) {
         _userData[key] = controller.text;
       });
 
-      // Save to local storage
+      // Save to API
       final success = await _userDataService.saveUserData(_userData);
 
       setState(() => _isEditing = false);
@@ -87,19 +87,28 @@ class _UserInformationScreenState extends State<UserInformationScreen> {
             content: Text(
                 success
                     ? '✅ Information saved successfully!'
-                    : '⚠️ Failed to save service. Please try again.'
+                    : '⚠️ Failed to save. Please try again.'
             ),
             backgroundColor: success ? AppTheme.successGreen : Colors.red,
           ),
         );
       }
+
+      // Reload data from API to get updated values
+      // if (success) {
+      //   await _loadUserData();
+      //   // Return true to indicate data was updated
+      //   if (mounted) {
+      //     Navigator.pop(context, true);
+      //   }
+      // }
     }
   }
 
   void _cancelEditing() {
     setState(() {
       _controllers.forEach((key, controller) {
-        controller.text = _userData[key]!;
+        controller.text = _userData[key] ?? '';
       });
       _isEditing = false;
     });
@@ -224,6 +233,49 @@ class _UserInformationScreenState extends State<UserInformationScreen> {
 
                         const SizedBox(height: 24),
 
+                        // Health Information
+                        _SectionHeader(title: 'Health Information'),
+                        const SizedBox(height: 16),
+                        GlassCard(
+                          child: Column(
+                            children: [
+                              _InfoField(
+                                label: 'A1C Level (%)',
+                                icon: Icons.bloodtype,
+                                controller: _controllers['a1c']!,
+                                enabled: _isEditing,
+                                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                validator: (value) {
+                                  if (value?.isNotEmpty ?? false) {
+                                    final a1c = double.tryParse(value!);
+                                    if (a1c == null) return 'Invalid A1C value';
+                                    if (a1c < 4 || a1c > 20) return 'A1C should be between 4-20%';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 16),
+                              _InfoField(
+                                label: 'Weight (kg)',
+                                icon: Icons.monitor_weight,
+                                controller: _controllers['weight']!,
+                                enabled: _isEditing,
+                                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                validator: (value) {
+                                  if (value?.isNotEmpty ?? false) {
+                                    final weight = double.tryParse(value!);
+                                    if (weight == null) return 'Invalid weight';
+                                    if (weight < 20 || weight > 300) return 'Weight should be between 20-300 kg';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 24),
+
                         // Emergency Contact
                         _SectionHeader(title: 'Emergency Contact'),
                         const SizedBox(height: 16),
@@ -305,9 +357,19 @@ class _UserInformationScreenState extends State<UserInformationScreen> {
   }
 
   Future<void> _selectDate(BuildContext context) async {
+    // Parse existing date if available
+    DateTime initialDate = DateTime(1990, 5, 15);
+    if (_controllers['dateOfBirth']!.text.isNotEmpty) {
+      try {
+        initialDate = DateTime.parse(_controllers['dateOfBirth']!.text);
+      } catch (e) {
+        // Use default if parsing fails
+      }
+    }
+
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime(1990, 5, 15),
+      initialDate: initialDate,
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
     );

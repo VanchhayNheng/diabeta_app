@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../../core/services/api_services.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/glass_widgets.dart';
-import '../service/exercise_log_service.dart';
+import '../../settings/service/user_data_service.dart';
 
 class ExerciseLogScreen extends StatefulWidget {
   const ExerciseLogScreen({super.key});
@@ -12,8 +13,10 @@ class ExerciseLogScreen extends StatefulWidget {
 
 class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
   final _exerciseLogService = ExerciseLogService();
+  final _userDataService = UserDataService();
   List<Map<String, dynamic>> _exerciseLogs = [];
   bool _isLoading = true;
+  String? _userId;
 
   @override
   void initState() {
@@ -23,52 +26,39 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
 
   Future<void> _loadExerciseLogs() async {
     setState(() => _isLoading = true);
-    final logs = await _exerciseLogService.loadExerciseLogs();
-    setState(() {
-      _exerciseLogs = logs;
-      _isLoading = false;
-    });
-  }
 
-  Future<void> _saveExerciseLogs() async {
-    await _exerciseLogService.saveExerciseLogs(_exerciseLogs);
+    try {
+      _userId = await _userDataService.getUserId();
+      final logs = await _exerciseLogService.getExercises(userId: _userId!);
+
+      setState(() {
+        _exerciseLogs = logs;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading exercises: $e')),
+        );
+      }
+    }
   }
 
   void _addExercise() async {
-    await Navigator.push(
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => AddExerciseScreen(
-          onSave: (exercise) {
-            setState(() {
-              exercise['id'] = DateTime.now().millisecondsSinceEpoch.toString();
-              _exerciseLogs.insert(0, exercise);
-            });
-            _saveExerciseLogs();
-          },
-        ),
+        builder: (context) => AddExerciseScreen(userId: _userId!),
       ),
     );
+
+    if (result == true) {
+      _loadExerciseLogs();
+    }
   }
 
-  void _editExercise(int index) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AddExerciseScreen(
-          exercise: _exerciseLogs[index],
-          onSave: (exercise) {
-            setState(() {
-              _exerciseLogs[index] = exercise;
-            });
-            _saveExerciseLogs();
-          },
-        ),
-      ),
-    );
-  }
-
-  void _deleteExercise(int index) {
+  void _deleteExercise(Map<String, dynamic> exercise) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -80,12 +70,26 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              setState(() {
-                _exerciseLogs.removeAt(index);
-              });
-              _saveExerciseLogs();
+            onPressed: () async {
               Navigator.pop(context);
+              try {
+                await _exerciseLogService.deleteExercise(exercise['id'], _userId!);
+                _loadExerciseLogs();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Exercise log deleted'),
+                      backgroundColor: AppTheme.successGreen,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                }
+              }
             },
             child: const Text('Delete', style: TextStyle(color: AppTheme.errorRed)),
           ),
@@ -94,13 +98,36 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
     );
   }
 
+  String _getActivityIcon(String activityType) {
+    switch (activityType.toLowerCase()) {
+      case 'walking':
+        return '🚶';
+      case 'running':
+        return '🏃';
+      case 'cycling':
+        return '🚴';
+      case 'swimming':
+        return '🏊';
+      case 'yoga':
+        return '🧘';
+      case 'gym':
+      case 'weight training':
+        return '🏋️';
+      case 'basketball':
+        return '🏀';
+      case 'soccer':
+      case 'football':
+        return '⚽';
+      default:
+        return '🏃';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: AppTheme.backgroundGradient,
-        ),
+        decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
         child: SafeArea(
           child: Column(
             children: [
@@ -176,7 +203,7 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
                                   ),
                                   child: Center(
                                     child: Text(
-                                      _getActivityIcon(exercise['activityType']),
+                                      _getActivityIcon(exercise['activity_type']),
                                       style: TextStyle(fontSize: 24),
                                     ),
                                   ),
@@ -187,14 +214,16 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        exercise['activityType'],
+                                        exercise['activity_type'],
                                         style: Theme.of(context)
                                             .textTheme
                                             .titleMedium
                                             ?.copyWith(fontWeight: FontWeight.bold),
                                       ),
                                       Text(
-                                        exercise['time'],
+                                        DateTime.parse(exercise['exercise_time'])
+                                            .toString()
+                                            .substring(0, 16),
                                         style: Theme.of(context)
                                             .textTheme
                                             .bodySmall
@@ -203,38 +232,18 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
                                     ],
                                   ),
                                 ),
-                                PopupMenuButton(
-                                  itemBuilder: (context) => [
-                                    PopupMenuItem(
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.edit, size: 18),
-                                          SizedBox(width: 8),
-                                          Text('Edit'),
-                                        ],
-                                      ),
-                                      onTap: () => _editExercise(index),
-                                    ),
-                                    PopupMenuItem(
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.delete, size: 18, color: AppTheme.errorRed),
-                                          SizedBox(width: 8),
-                                          Text('Delete', style: TextStyle(color: AppTheme.errorRed)),
-                                        ],
-                                      ),
-                                      onTap: () => _deleteExercise(index),
-                                    ),
-                                  ],
+                                IconButton(
+                                  icon: Icon(Icons.delete, color: AppTheme.errorRed),
+                                  onPressed: () => _deleteExercise(exercise),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 12),
-                            Row(
+                            Wrap(
                               children: [
                                 _ExerciseBadge(
                                   icon: Icons.timer,
-                                  label: '${exercise['duration']} min',
+                                  label: '${exercise['duration_minutes']} min',
                                 ),
                                 const SizedBox(width: 8),
                                 _ExerciseBadge(
@@ -244,7 +253,7 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
                                 const SizedBox(width: 8),
                                 _ExerciseBadge(
                                   icon: Icons.local_fire_department,
-                                  label: '${exercise['calories']} cal',
+                                  label: '${exercise['calories_burned']} cal',
                                 ),
                               ],
                             ),
@@ -270,25 +279,6 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
         ),
       ),
     );
-  }
-
-  String _getActivityIcon(String activityType) {
-    switch (activityType) {
-      case 'Walking':
-        return '🚶';
-      case 'Running':
-        return '🏃';
-      case 'Cycling':
-        return '🚴';
-      case 'Swimming':
-        return '🏊';
-      case 'Yoga':
-        return '🧘';
-      case 'Gym':
-        return '🏋️';
-      default:
-        return '🏃';
-    }
   }
 }
 
@@ -322,10 +312,9 @@ class _ExerciseBadge extends StatelessWidget {
 }
 
 class AddExerciseScreen extends StatefulWidget {
-  final Map<String, dynamic>? exercise;
-  final Function(Map<String, dynamic>) onSave;
+  final String userId;
 
-  const AddExerciseScreen({super.key, this.exercise, required this.onSave});
+  const AddExerciseScreen({super.key, required this.userId});
 
   @override
   State<AddExerciseScreen> createState() => _AddExerciseScreenState();
@@ -333,68 +322,95 @@ class AddExerciseScreen extends StatefulWidget {
 
 class _AddExerciseScreenState extends State<AddExerciseScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _exerciseLogService = ExerciseLogService();
+
+  late TextEditingController _activityController;
   late TextEditingController _durationController;
   late TextEditingController _caloriesController;
   late TextEditingController _notesController;
-  String _activityType = 'Walking';
   String _intensity = 'Moderate';
-  TimeOfDay _selectedTime = TimeOfDay.now();
+  DateTime _selectedTime = DateTime.now();
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _durationController = TextEditingController(text: widget.exercise?['duration'] ?? '');
-    _caloriesController = TextEditingController(text: widget.exercise?['calories'] ?? '');
-    _notesController = TextEditingController(text: widget.exercise?['notes'] ?? '');
-    if (widget.exercise != null) {
-      _activityType = widget.exercise!['activityType'];
-      _intensity = widget.exercise!['intensity'];
-      final timeParts = widget.exercise!['time'].split(':');
-      _selectedTime = TimeOfDay(
-        hour: int.parse(timeParts[0]),
-        minute: int.parse(timeParts[1].split(' ')[0]),
-      );
-    }
+    _activityController = TextEditingController();
+    _durationController = TextEditingController();
+    _caloriesController = TextEditingController();
+    _notesController = TextEditingController();
   }
 
   @override
   void dispose() {
+    _activityController.dispose();
     _durationController.dispose();
     _caloriesController.dispose();
     _notesController.dispose();
     super.dispose();
   }
 
-  Future<void> _selectTime() async {
-    final TimeOfDay? picked = await showTimePicker(
+  Future<void> _selectDateTime() async {
+    final date = await showDatePicker(
       context: context,
-      initialTime: _selectedTime,
+      initialDate: _selectedTime,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
     );
-    if (picked != null) {
-      setState(() => _selectedTime = picked);
+    if (date != null) {
+      final time = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(_selectedTime),
+      );
+      if (time != null) {
+        setState(() {
+          _selectedTime = DateTime(
+            date.year,
+            date.month,
+            date.day,
+            time.hour,
+            time.minute,
+          );
+        });
+      }
     }
   }
 
-  void _saveExercise() {
+  Future<void> _saveExercise() async {
     if (_formKey.currentState!.validate()) {
-      final exercise = {
-        'id': widget.exercise?['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
-        'activityType': _activityType,
-        'duration': _durationController.text,
-        'intensity': _intensity,
-        'calories': _caloriesController.text,
-        'time': _selectedTime.format(context),
-        'date': DateTime.now().toIso8601String(),
-        'notes': _notesController.text,
-      };
-      widget.onSave(exercise);
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Exercise logged successfully!'),
-          backgroundColor: AppTheme.successGreen,
-        ),
-      );
+      setState(() => _isSaving = true);
+
+      try {
+        await _exerciseLogService.saveExercise(
+          activityType: _activityController.text,
+          durationMinutes: int.parse(_durationController.text),
+          intensity: _intensity,
+          caloriesBurned: int.parse(_caloriesController.text),
+          exerciseTime: _selectedTime,
+          notes: _notesController.text,
+          userId: widget.userId,
+        );
+
+        if (mounted) {
+          Navigator.pop(context, true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Exercise logged successfully!'),
+              backgroundColor: AppTheme.successGreen,
+            ),
+          );
+        }
+      } catch (e) {
+        setState(() => _isSaving = false);
+
+
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e')),
+          );
+        }
+      }
     }
   }
 
@@ -416,7 +432,7 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      widget.exercise == null ? 'Add Exercise' : 'Edit Exercise',
+                      'Add Exercise',
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -434,16 +450,28 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
                         GlassCard(
                           child: Column(
                             children: [
-                              DropdownButtonFormField<String>(
-                                value: _activityType,
+                              TextFormField(
+                                controller: _activityController,
                                 decoration: InputDecoration(
                                   labelText: 'Activity Type',
+                                  hintText: 'e.g., Running, Cycling, Yoga',
                                   prefixIcon: Icon(Icons.directions_run),
                                 ),
-                                items: ['Walking', 'Running', 'Cycling', 'Swimming', 'Yoga', 'Gym', 'Other']
-                                    .map((type) => DropdownMenuItem(value: type, child: Text(type)))
-                                    .toList(),
-                                onChanged: (value) => setState(() => _activityType = value!),
+                                validator: (value) =>
+                                value?.isEmpty ?? true ? 'Required' : null,
+                              ),
+                              const SizedBox(height: 16),
+                              InkWell(
+                                onTap: _selectDateTime,
+                                child: InputDecorator(
+                                  decoration: InputDecoration(
+                                    labelText: 'Date & Time',
+                                    prefixIcon: Icon(Icons.access_time),
+                                  ),
+                                  child: Text(
+                                    _selectedTime.toString().substring(0, 16),
+                                  ),
+                                ),
                               ),
                               const SizedBox(height: 16),
                               Row(
@@ -456,7 +484,8 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
                                         prefixIcon: Icon(Icons.timer),
                                       ),
                                       keyboardType: TextInputType.number,
-                                      validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
+                                      validator: (value) =>
+                                      value?.isEmpty ?? true ? 'Required' : null,
                                     ),
                                   ),
                                   const SizedBox(width: 16),
@@ -468,9 +497,11 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
                                         prefixIcon: Icon(Icons.speed),
                                       ),
                                       items: ['Low', 'Moderate', 'High']
-                                          .map((i) => DropdownMenuItem(value: i, child: Text(i)))
+                                          .map((i) => DropdownMenuItem(
+                                          value: i, child: Text(i)))
                                           .toList(),
-                                      onChanged: (value) => setState(() => _intensity = value!),
+                                      onChanged: (value) =>
+                                          setState(() => _intensity = value!),
                                     ),
                                   ),
                                 ],
@@ -483,18 +514,8 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
                                   prefixIcon: Icon(Icons.local_fire_department),
                                 ),
                                 keyboardType: TextInputType.number,
-                                validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
-                              ),
-                              const SizedBox(height: 16),
-                              InkWell(
-                                onTap: _selectTime,
-                                child: InputDecorator(
-                                  decoration: InputDecoration(
-                                    labelText: 'Time',
-                                    prefixIcon: Icon(Icons.access_time),
-                                  ),
-                                  child: Text(_selectedTime.format(context)),
-                                ),
+                                validator: (value) =>
+                                value?.isEmpty ?? true ? 'Required' : null,
                               ),
                               const SizedBox(height: 16),
                               TextFormField(
@@ -511,15 +532,23 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
                         ),
                         const SizedBox(height: 24),
                         ElevatedButton(
-                          onPressed: _saveExercise,
+                          onPressed: _isSaving ? null : _saveExercise,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.primaryPurple,
                             minimumSize: const Size(double.infinity, 56),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                           ),
-                          child: Text(
-                            widget.exercise == null ? 'Add Exercise' : 'Save Changes',
-                            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                          child: _isSaving
+                              ? CircularProgressIndicator(color: Colors.white)
+                              : Text(
+                            'Add Exercise',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],
