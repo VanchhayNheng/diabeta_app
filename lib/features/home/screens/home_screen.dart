@@ -311,14 +311,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                     const SizedBox(height: 16),
                     SizedBox(
-                      height: 140,
+                      height: 110,
                       child: ListView(
                         scrollDirection: Axis.horizontal,
                         children: [
                           QuickActionCard(
                             icon: '💊',
                             title: 'Medications',
-                            badge: '2 pending',
+                            // badge: '2 pending',
                             onTap: widget.onNavigateToMedications ?? () {},
                           ),
                           const SizedBox(width: 10),
