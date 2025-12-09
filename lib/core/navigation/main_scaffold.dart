@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../features/assistant/screens/assistant_screen.dart';
+import '../../features/settings/screens/GlucoseScreen.dart';
 import '../../features/settings/screens/exercise_log_screeen.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/reports/screens/reports_screen.dart';
@@ -48,6 +49,19 @@ class _MainScaffoldState extends State<MainScaffold> {
           Navigator.push(context, MaterialPageRoute(
             builder: (context) => ExerciseLogScreen(),
           ));
+        },
+        onNavigateToGlucose: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const GlucoseScreen(),
+            ),
+          );
+
+          // Refresh home screen if data was added
+          if (result == true) {
+            (_homeKey.currentState as dynamic)?.refresh();
+          }
         },
       ),
       AssistantScreen(key: _assistantKey),

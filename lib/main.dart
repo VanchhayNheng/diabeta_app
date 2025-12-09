@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'core/theme/app_theme.dart';
 import 'core/navigation/main_scaffold.dart';
 import 'features/splash/screens/splash_screen.dart';
+import 'features/auth/screens/login_screen.dart';
 import 'core/services/api_services.dart';
 
 void main() {
@@ -47,6 +48,7 @@ class DiabetaApp extends StatelessWidget {
       initialRoute: '/',
       routes: {
         '/': (context) => const SplashScreen(),
+        '/login': (context) => const LoginScreen(),
         '/main': (context) => const MainScaffold(),
       },
     );

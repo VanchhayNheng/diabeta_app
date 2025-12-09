@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 //
 // /// Service class to handle user data persistence
@@ -142,6 +144,20 @@ import '../../../core/services/api_services.dart';
 class UserDataService {
   static const String _userIdKey = 'user_id';
   final UserService _userService = UserService();
+
+  /// Cache glucose stats
+  Future<void> cacheGlucoseStats(Map<String, dynamic> stats) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('cached_glucose_stats', jsonEncode(stats));
+  }
+
+  /// Get cached glucose stats
+  Future<Map<String, dynamic>?> getCachedGlucoseStats() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cached = prefs.getString('cached_glucose_stats');
+    if (cached == null) return null;
+    return Map<String, dynamic>.from(jsonDecode(cached) as Map);
+  }
 
   /// Get stored user ID from local storage
   Future<String> getUserId() async {

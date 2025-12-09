@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/services/audio_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/models/models.dart';
@@ -25,12 +26,7 @@ class _AssistantScreenState extends State<AssistantScreen> with SingleTickerProv
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
-  final Map<String, dynamic> _userProfile = {
-    'a1c': 7.0,
-    'age': 35,
-    'weight': 70,
-  };
-
+  Map<String, dynamic> _userProfile = {};
   String? _sessionId;
   final List<ChatMessage> _messages = [];
   final List<File> _selectedImages = [];
@@ -40,6 +36,60 @@ class _AssistantScreenState extends State<AssistantScreen> with SingleTickerProv
   String? _recordedAudioPath;
   Duration? _recordingDuration;
   bool _isHolding = false;
+  bool _isLoadingProfile = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+    _sessionId = 'user_${DateTime.now().millisecondsSinceEpoch}';
+
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+
+    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+
+    _messages.addAll([
+      ChatMessage(
+        id: '1',
+        content: 'Hello! I\'m your diabetes management assistant. I can help you track your meals, analyze nutrition, and predict blood sugar impacts. Send me photos of your meals or ask me anything!',
+        isUser: false,
+        timestamp: DateTime.now().subtract(const Duration(minutes: 2)),
+      ),
+    ]);
+  }
+
+  Future<void> _loadUserProfile() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final profileJson = prefs.getString('user_profile');
+
+      if (profileJson != null) {
+        final profile = jsonDecode(profileJson) as Map<String, dynamic>;
+        setState(() {
+          _userProfile = {
+            'a1c': profile['a1c'] ?? 0.0,
+            'age': profile['age'] ?? 0,
+            'weight': profile['weight'] ?? 0.0,
+          };
+          _isLoadingProfile = false;
+        });
+      } else {
+        setState(() {
+          _isLoadingProfile = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading user profile: $e');
+      setState(() {
+        _isLoadingProfile = false;
+      });
+    }
+  }
 
   void _onMicButtonDown() {
     if (!_isRecording) {
@@ -108,30 +158,6 @@ class _AssistantScreenState extends State<AssistantScreen> with SingleTickerProv
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _sessionId = 'user_${DateTime.now().millisecondsSinceEpoch}';
-
-    _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    );
-
-    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-
-    _messages.addAll([
-      ChatMessage(
-        id: '1',
-        content: 'Hello! I\'m your diabetes management assistant. I can help you track your meals, analyze nutrition, and predict blood sugar impacts. Send me photos of your meals or ask me anything!',
-        isUser: false,
-        timestamp: DateTime.now().subtract(const Duration(minutes: 2)),
-      ),
-    ]);
-  }
-
   void _pickImages() async {
     final XFile? image = await _picker.pickImage(
       source: ImageSource.gallery,
@@ -148,7 +174,7 @@ class _AssistantScreenState extends State<AssistantScreen> with SingleTickerProv
         _selectedImages.clear();
         _selectedImagesBase64.clear();
         _selectedImages.add(File(image.path));
-        _selectedImagesBase64.add('service:image/jpeg;base64,$base64Image');
+        _selectedImagesBase64.add('data:image/jpeg;base64,$base64Image');
       });
     }
   }
@@ -169,7 +195,7 @@ class _AssistantScreenState extends State<AssistantScreen> with SingleTickerProv
         _selectedImages.clear();
         _selectedImagesBase64.clear();
         _selectedImages.add(File(image.path));
-        _selectedImagesBase64.add('service:image/jpeg;base64,$base64Image');
+        _selectedImagesBase64.add('data:image/jpeg;base64,$base64Image');
       });
     }
   }
@@ -218,7 +244,7 @@ class _AssistantScreenState extends State<AssistantScreen> with SingleTickerProv
       _isSending = true;
     });
 
-    // Prepare service
+    // Prepare data
     final imageBase64 = _selectedImagesBase64.isNotEmpty
         ? _selectedImagesBase64.first
         : null;
@@ -249,12 +275,12 @@ class _AssistantScreenState extends State<AssistantScreen> with SingleTickerProv
       _messages.add(
         ChatMessage(
           id: DateTime.now().toString(),
-          content: messageText, // Keep the actual text message
+          content: messageText,
           isUser: true,
           timestamp: DateTime.now(),
           imageUrls: messagePaths.isNotEmpty ? messagePaths : null,
-          audioPath: permanentAudioPath, // Use permanent path
-          audioDuration: audioDuration, // Add duration
+          audioPath: permanentAudioPath,
+          audioDuration: audioDuration,
         ),
       );
     });
@@ -273,9 +299,11 @@ class _AssistantScreenState extends State<AssistantScreen> with SingleTickerProv
     _scrollToBottom();
 
     try {
-      // Send to API
+      // Send to API with user profile
       final response = await _aiService.sendMessage(
-        text: messageText.isNotEmpty ? messageText : (permanentAudioPath != null ? 'Voice message' : 'Analyze this meal'),
+        text: messageText.isNotEmpty
+            ? messageText
+            : (permanentAudioPath != null ? 'Voice message' : 'Analyze this meal'),
         imageBase64: imageBase64,
         audioBase64: audioBase64,
         userProfile: _userProfile,
@@ -343,7 +371,6 @@ class _AssistantScreenState extends State<AssistantScreen> with SingleTickerProv
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        // Dismiss keyboard when tapping outside
         FocusScope.of(context).unfocus();
       },
       child: Container(
@@ -385,7 +412,7 @@ class _AssistantScreenState extends State<AssistantScreen> with SingleTickerProv
                           ),
                         ),
                         Text(
-                          _isRecording ? '🔴 Recording...' : 'Online', // Show recording status
+                          _isRecording ? '🔴 Recording...' : 'Online',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: _isRecording ? Colors.red : AppTheme.successGreen,
                           ),
@@ -706,6 +733,60 @@ class _MessageBubble extends StatelessWidget {
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 
+  // Parse markdown-style text with **bold**
+  List<TextSpan> _parseMarkdown(String text, bool isUser) {
+    final List<TextSpan> spans = [];
+    final RegExp boldPattern = RegExp(r'\*\*(.*?)\*\*');
+
+    int lastIndex = 0;
+
+    for (final match in boldPattern.allMatches(text)) {
+      // Add text before bold
+      if (match.start > lastIndex) {
+        spans.add(TextSpan(
+          text: text.substring(lastIndex, match.start),
+          style: TextStyle(
+            color: isUser ? Colors.white : AppTheme.textPrimary,
+            fontSize: 15,
+          ),
+        ));
+      }
+
+      // Add bold text
+      spans.add(TextSpan(
+        text: match.group(1),
+        style: TextStyle(
+          color: isUser ? Colors.white : AppTheme.textPrimary,
+          fontSize: 15,
+          fontWeight: FontWeight.bold,
+        ),
+      ));
+
+      lastIndex = match.end;
+    }
+
+    // Add remaining text
+    if (lastIndex < text.length) {
+      spans.add(TextSpan(
+        text: text.substring(lastIndex),
+        style: TextStyle(
+          color: isUser ? Colors.white : AppTheme.textPrimary,
+          fontSize: 15,
+        ),
+      ));
+    }
+
+    return spans.isEmpty
+        ? [TextSpan(
+      text: text,
+      style: TextStyle(
+        color: isUser ? Colors.white : AppTheme.textPrimary,
+        fontSize: 15,
+      ),
+    )]
+        : spans;
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<String> images = message.imageUrls ??
@@ -851,15 +932,11 @@ class _MessageBubble extends StatelessWidget {
                         if (message.content.isNotEmpty) const SizedBox(height: 12),
                       ],
 
-                      // Display text message
+                      // Display text message with markdown support
                       if (message.content.isNotEmpty)
-                        Text(
-                          message.content,
-                          style: TextStyle(
-                            color: message.isUser
-                                ? Colors.white
-                                : AppTheme.textPrimary,
-                            fontSize: 15,
+                        RichText(
+                          text: TextSpan(
+                            children: _parseMarkdown(message.content, message.isUser),
                           ),
                         ),
                     ],

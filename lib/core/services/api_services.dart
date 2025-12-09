@@ -1,10 +1,12 @@
 import 'package:dio/dio.dart';
+import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Base API configuration
 class ApiConfig {
   static const String baseUrl = 'http://203.241.228.97:8000';
-  static const int connectionTimeout = 30000;
-  static const int receiveTimeout = 30000;
+  static const int connectionTimeout = 100000;
+  static const int receiveTimeout = 100000;
 }
 
 /// Base API client with common configuration
@@ -26,8 +28,12 @@ class ApiClient {
 
     _dio.interceptors.add(
       InterceptorsWrapper(
-        onRequest: (options, handler) {
-          print('REQUEST[${options.method}] => PATH: ${options.path}');
+        onRequest: (options, handler) async {
+          final prefs = await SharedPreferences.getInstance();
+          final token = prefs.getString('access_token');
+          if (token != null) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
           return handler.next(options);
         },
         onResponse: (response, handler) {
@@ -180,12 +186,11 @@ class GlucoseService {
   }) async {
     try {
       final response = await _apiClient.dio.post(
-        '/glucose/readings',
+        '/api/health/glucose',
         data: {
-          'value': value,
-          'type': type,
-          'notes': notes,
-          'timestamp': DateTime.now().toIso8601String(),
+          'glucose_value': value,
+          'reading_time': DateTime.now().toIso8601String(),
+          'notes': notes ?? type,
         },
       );
 
@@ -275,7 +280,7 @@ class AuthService {
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
       final response = await _apiClient.dio.post(
-        '/auth/login',
+        '/api/users/login',
         data: {
           'email': email,
           'password': password,
@@ -297,13 +302,14 @@ class AuthService {
   }) async {
     try {
       final response = await _apiClient.dio.post(
-        '/auth/register',
+        '/api/users/register',
         data: {
-          'name': name,
+          'full_name': name,
           'email': email,
           'password': password,
-          'dateOfBirth': dateOfBirth.toIso8601String(),
+          'date_of_birth': DateFormat('yyyy-MM-dd').format(dateOfBirth),
           'gender': gender,
+          'weight': 70.0, // Default value as API requires it
         },
       );
 
