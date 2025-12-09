@@ -170,7 +170,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
               // Header
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(30),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -183,10 +183,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                         'Hello, $_userName 👋',
                         style: Theme.of(context).textTheme.displaySmall,
                       ),
-                      const ProfileAvatar(
-                        size: 44,
-                        editable: false,
-                      ),
+
                     ],
                   ),
                 ),
@@ -207,7 +204,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '📊 Talk With Your Us',
+                          '📊 Talk With Assistant',
                           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                             color: Colors.white,
                           ),
@@ -227,7 +224,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                             foregroundColor: AppTheme.primaryPurple,
                             elevation: 0,
                           ),
-                          child: const Text('Check Now'),
+                          child: const Text('Talk Now'),
                         ),
                       ],
                     ),

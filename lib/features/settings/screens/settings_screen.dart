@@ -1,10 +1,14 @@
 import 'dart:convert';
 import 'dart:ui';
+import 'package:diabeta_app/features/settings/screens/GlucoseScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/services/api_services.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/glass_widgets.dart';
+import 'exercise_log_screeen.dart';
+import 'meal_log_screen.dart';
+import 'medication_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -370,10 +374,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: Column(
                       children: [
                         _buildSettingsItem(
+                          icon: '🩸',
+                          title: 'Glucose',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const GlucoseScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        _buildDivider(),
+                        _buildSettingsItem(
                           icon: '💊',
                           title: 'Your Medication',
                           onTap: () {
-                            // TODO: Navigate to medication screen
+                            Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const MedicationScreen(),
+                                ),
+                            );
                           },
                         ),
                         _buildDivider(),
@@ -381,7 +403,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           icon: '🥗',
                           title: 'Meal Log',
                           onTap: () {
-                            // TODO: Navigate to meal log screen
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const MealLogScreen(),
+                              ),
+                            );
                           },
                         ),
                         _buildDivider(),
@@ -389,7 +416,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           icon: '🏃',
                           title: 'Exercise',
                           onTap: () {
-                            // TODO: Navigate to exercise screen
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const ExerciseLogScreen(),
+                              ),
+                            );
                           },
                         ),
                       ],

@@ -179,7 +179,7 @@ class _GlucoseScreenState extends State<GlucoseScreen> {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      'Add Glucose Reading',
+                      'Add Glucose',
                       style: Theme.of(context).textTheme.displaySmall,
                     ),
                   ],
