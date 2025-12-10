@@ -1,12 +1,16 @@
 import 'dart:convert';
 import 'dart:ui';
 import 'package:diabeta_app/features/settings/screens/GlucoseScreen.dart';
+import 'package:diabeta_app/features/settings/screens/report_issue_screen.dart';
+import 'package:diabeta_app/features/settings/screens/user_information_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/services/api_services.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/glass_widgets.dart';
+import 'about_us_screen.dart';
 import 'exercise_log_screeen.dart';
+import 'health_information_screen.dart';
 import 'meal_log_screen.dart';
 import 'medication_screen.dart';
 
@@ -29,7 +33,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadUserProfile();
   }
 
+  Future<void> _navigateToUserInfo() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const UserInformationScreen(),
+      ),
+    );
 
+    // Refresh profile info when returning
+    if (result == true || mounted) {
+      _loadUserProfile();
+    }
+  }
 
   Future<void> _loadUserProfile() async {
     try {
@@ -437,39 +453,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 12),
                   GlassCard(
-                    padding: EdgeInsets.zero,
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildSettingsItem(
+                        Text(
+                          'Account Settings',
+                          style: Theme.of(context).textTheme.headlineMedium,
+                        ),
+                        const SizedBox(height: 16),
+                        _SettingItem(
                           icon: '👤',
                           title: 'Your Information',
-                          onTap: () {
-                            // TODO: Navigate to user information edit screen
-                          },
+                          onTap: _navigateToUserInfo,
                         ),
-                        _buildDivider(),
-                        _buildSettingsItem(
-                          icon: '🏥',
+                        _SettingItem(
+                          icon: '📋',
                           title: 'Health Information',
                           onTap: () {
-                            // TODO: Navigate to health info screen
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const HealthInformationScreen(),
+                              ),
+                            );
                           },
                         ),
-                        _buildDivider(),
-                        _buildSettingsItem(
+                        _SettingItem(
                           icon: '⚠️',
                           title: 'Report an Issue',
                           onTap: () {
-                            // TODO: Navigate to report issue screen
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const ReportIssueScreen(),
+                              ),
+                            );
                           },
                         ),
-                        _buildDivider(),
-                        _buildSettingsItem(
+                        _SettingItem(
                           icon: 'ℹ️',
                           title: 'About Us',
                           onTap: () {
-                            // TODO: Navigate to about screen
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const AboutUsScreen(),
+                              ),
+                            );
                           },
+                          showDivider: false,
                         ),
                       ],
                     ),
@@ -598,6 +630,58 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SettingItem extends StatelessWidget {
+  final String icon;
+  final String title;
+  final VoidCallback onTap;
+  final bool showDivider;
+
+  const _SettingItem({
+    Key? key,
+    required this.icon,
+    required this.title,
+    required this.onTap,
+    this.showDivider = true,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryPurple.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Text(icon, style: const TextStyle(fontSize: 20)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.labelMedium,
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  size: 16,
+                  color: AppTheme.textTertiary,
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (showDivider) const SizedBox(height: 12),
+      ],
     );
   }
 }
